@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>AI Swing Advisor</title>
+<style>
+:root{--bg:#0b0d10;--card:#141820;--muted:#8f9aaa;--text:#f5f7fa;--line:#252c36;--good:#38d996;--warn:#ffc857;--bad:#ff6b6b;--blue:#72a7ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:980px;margin:auto;padding:18px 14px 70px}.top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.title{font-size:25px;font-weight:800}.sub{font-size:12px;color:var(--muted);margin-top:5px}.regime{padding:8px 10px;border:1px solid var(--line);border-radius:12px;font-size:12px;background:var(--card)}.hero{margin-top:14px;padding:15px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#161b24,#10141a)}.hero h2{margin:0 0 4px;font-size:16px}.hero .desc{font-size:12px;color:var(--muted);line-height:1.5}.cards{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}.card{background:var(--card);border:1px solid var(--line);border-radius:17px;padding:14px}.row{display:flex;align-items:center;justify-content:space-between;gap:8px}.sym{font-size:21px;font-weight:850}.name{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}.score{font-size:24px;font-weight:850}.grade{font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid var(--line)}.A,.B{color:var(--good)}.C{color:var(--warn)}.D,.E{color:var(--bad)}.action{margin-top:8px;font-weight:700;font-size:15px}.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:10px}.m{background:#0e1218;border-radius:10px;padding:8px}.k{font-size:10px;color:var(--muted)}.v{font-size:13px;font-weight:650;margin-top:2px}.bar{display:grid;grid-template-columns:1.4fr 3fr 35px;gap:8px;align-items:center;margin-top:6px;font-size:10px;color:var(--muted)}.track{height:6px;border-radius:8px;background:#202732;overflow:hidden}.fill{height:100%;background:var(--blue)}.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}.chip{font-size:10px;padding:4px 7px;border-radius:999px;background:#0e1218;border:1px solid var(--line)}.pos{color:var(--good)}.risk{color:var(--bad)}details{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}summary{font-size:12px;color:var(--blue);cursor:pointer}.plan{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:8px}.notice{margin-top:14px;font-size:11px;line-height:1.55;color:var(--muted)}.filters{display:flex;gap:7px;overflow:auto;margin-top:12px;padding-bottom:4px}.btn{white-space:nowrap;border:1px solid var(--line);background:var(--card);color:var(--text);padding:7px 10px;border-radius:999px;font-size:11px}.btn.on{border-color:var(--blue);color:var(--blue)}.owned{color:#d7b3ff}.empty{text-align:center;color:var(--muted);padding:30px}.pct.up{color:var(--good)}.pct.down{color:var(--bad)}
+@media(min-width:720px){.cards{grid-template-columns:1fr 1fr}.metrics{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body><main>
+<div class="top"><div><div class="title">AI Swing Advisor</div><div class="sub" id="updated">読み込み中...</div></div><div class="regime" id="regime">--</div></div>
+<div class="hero"><h2>AI銘柄を「日足 × 週足 × 業績 × 将来予想」で順位付け</h2><div class="desc">数日〜数週間のスイング向け。短期足は使わず、日足25点＋週足15点でテクニカルを評価します。高得点でも過熱時は「押し目待ち」、週足が弱ければ「週足確認待ち」です。</div></div>
+<div class="filters" id="filters"></div>
+<div class="cards" id="cards"><div class="empty">データ取得中...</div></div>
+<div class="notice" id="method"></div>
+</main>
+<script>
+let DATA=null, FILTER='ALL';
+const fmt=(v,d=1)=>v===null||v===undefined||Number.isNaN(Number(v))?'--':Number(v).toFixed(d);
+const pct=v=>{if(v===null||v===undefined||Number.isNaN(Number(v)))return '--';let n=Number(v);return `<span class="pct ${n>=0?'up':'down'}">${n>=0?'+':''}${n.toFixed(1)}%</span>`};
+const growth=v=>{if(v===null||v===undefined||Number.isNaN(Number(v)))return '--';let n=Number(v); if(Math.abs(n)<2)n*=100; return pct(n)};
+function scorebar(label,val,max){let w=Math.max(0,Math.min(100,100*Number(val||0)/max));return `<div class="bar"><span>${label}</span><div class="track"><div class="fill" style="width:${w}%"></div></div><b>${fmt(val,0)}</b></div>`}
+function card(x){
+ let pos=(x.positives||[]).map(t=>`<span class="chip pos">+ ${t}</span>`).join('');
+ let risk=(x.risks||[]).map(t=>`<span class="chip risk">− ${t}</span>`).join('');
+ let owned=x.owned?`<span class="chip owned">保有中</span>`:'';
+ return `<div class="card">
+ <div class="row"><div><div class="sym">${x.symbol} ${owned}</div><div class="name">${x.name||''} · ${x.group}</div></div><div style="text-align:right"><div class="score ${x.grade}">${fmt(x.score,0)}</div><span class="grade ${x.grade}">${x.grade} / Conf ${fmt(x.confidence,0)}%</span></div></div>
+ <div class="action">${x.action}</div>
+ <div class="metrics">
+  <div class="m"><div class="k">Price</div><div class="v">$${fmt(x.price,2)}</div></div>
+  <div class="m"><div class="k">20日</div><div class="v">${pct(x.ret_20d_pct)}</div></div>
+  <div class="m"><div class="k">60日</div><div class="v">${pct(x.ret_60d_pct)}</div></div>
+  <div class="m"><div class="k">13週</div><div class="v">${pct(x.weekly_ret_13w_pct)}</div></div>
+  <div class="m"><div class="k">SMH比 20日</div><div class="v">${pct(x.rs_smh_20d_pct)}</div></div>
+  <div class="m"><div class="k">SMH比 13週</div><div class="v">${pct(x.weekly_rs_smh_13w_pct)}</div></div>
+  <div class="m"><div class="k">日足 RSI14</div><div class="v">${fmt(x.rsi14,1)}</div></div>
+  <div class="m"><div class="k">週足 RSI14</div><div class="v">${fmt(x.weekly_rsi14,1)}</div></div>
+  <div class="m"><div class="k">翌期売上</div><div class="v">${growth(x.next_rev_growth_est)}</div></div>
+  <div class="m"><div class="k">翌期EPS</div><div class="v">${growth(x.next_eps_growth_est)}</div></div>
+  <div class="m"><div class="k">EPS予想修正30日</div><div class="v">${pct(x.eps_revision_pct_30d)}</div></div>
+  <div class="m"><div class="k">Forward P/E</div><div class="v">${fmt(x.forward_pe,1)}</div></div>
+ </div>
+ ${scorebar('Daily technical',x.daily_technical_score,25)}${scorebar('Weekly technical',x.weekly_technical_score,15)}${scorebar('Forward',x.forward_score,25)}${scorebar('Quality',x.quality_score,20)}${scorebar('Valuation',x.valuation_score,10)}
+ <div class="chips">${pos}${risk}</div>
+ <details><summary>スイング参考値・詳細</summary>
+  <div class="plan">
+   <div class="m"><div class="k">Entry zone</div><div class="v">$${fmt(x.entry_zone_low,2)} – $${fmt(x.entry_zone_high,2)}</div></div>
+   <div class="m"><div class="k">Invalidation</div><div class="v">$${fmt(x.invalidation,2)}</div></div>
+   <div class="m"><div class="k">2R reference</div><div class="v">$${fmt(x.target_2R,2)}</div></div>
+   <div class="m"><div class="k">3R reference</div><div class="v">$${fmt(x.target_3R,2)}</div></div>
+   <div class="m"><div class="k">21EMA</div><div class="v">$${fmt(x.ema21,2)}</div></div>
+   <div class="m"><div class="k">50DMA</div><div class="v">$${fmt(x.ma50,2)}</div></div>
+   <div class="m"><div class="k">10週EMA</div><div class="v">$${fmt(x.weekly_ema10,2)}</div></div>
+   <div class="m"><div class="k">30週EMA</div><div class="v">$${fmt(x.weekly_ema30,2)}</div></div>
+   <div class="m"><div class="k">次回決算</div><div class="v">${x.next_earnings_date||'--'} ${x.days_to_earnings===null||x.days_to_earnings===undefined?'':`(${fmt(x.days_to_earnings,0)}日)`}</div></div>
+   <div class="m"><div class="k">Analyst upside</div><div class="v">${pct(x.analyst_upside_pct)}</div></div>
+   <div class="m"><div class="k">Operating margin</div><div class="v">${growth(x.operating_margin)}</div></div>
+  </div>
+  ${x.holding_note?`<div class="notice">保有評価: ${x.holding_note}</div>`:''}
+  ${(x.guidance_snippets||[]).length?`<div class="notice"><b>Guidance抽出:</b><br>${x.guidance_snippets.map(s=>String(s).replace(/</g,'&lt;')).join('<br><br>')}</div>`:''}
+ </details></div>`
+}
+function render(){
+ if(!DATA)return; let rows=DATA.ranking||[]; if(FILTER!=='ALL')rows=rows.filter(x=>x.group===FILTER); document.getElementById('cards').innerHTML=rows.slice(0,30).map(card).join('')||'<div class="empty">該当なし</div>';
+}
+fetch('./data/advisor.json?'+Date.now()).then(r=>r.json()).then(d=>{
+ DATA=d; let dt=new Date(d.updated_at); document.getElementById('updated').textContent='更新 '+dt.toLocaleString('ja-JP');
+ document.getElementById('regime').textContent=(d.regime&&d.regime.regime_jp)||'--';
+ let groups=['ALL',...new Set((d.ranking||[]).map(x=>x.group))]; let f=document.getElementById('filters'); f.innerHTML=groups.map(g=>`<button class="btn ${g==='ALL'?'on':''}" data-g="${g}">${g==='ALL'?'総合':g}</button>`).join('');
+ f.querySelectorAll('button').forEach(b=>b.onclick=()=>{FILTER=b.dataset.g;f.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');render()});
+ document.getElementById('method').textContent=d.methodology?.warning||''; render();
+}).catch(e=>document.getElementById('cards').innerHTML='<div class="empty">advisor.jsonがまだありません。GitHub Actionsを一度実行してください。</div>');
+</script></body></html>
