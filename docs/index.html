@@ -67,11 +67,11 @@ function card(x){
 function render(){
  if(!DATA)return; let rows=MODE==='detail'?(DATA.ranking||[]):((DATA.screening||[]).map(x=>({...x,name:x.symbol,score:x.screen_score,grade:'C',confidence:100,action:'一次スクリーニング',quality_score:0,forward_score:0,valuation_score:0}))); if(FILTER!=='ALL')rows=rows.filter(x=>x.group===FILTER); document.getElementById('cards').innerHTML=rows.slice(0,MODE==='detail'?50:250).map(card).join('')||'<div class="empty">該当なし</div>';
 }
-fetch('./data/advisor.json?'+Date.now()).then(r=>r.json()).then(d=>{
+fetch('./data/advisor.json?'+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(t=>{try{return JSON.parse(t)}catch(e){throw new Error('JSON parse error: '+e.message)}}).then(d=>{
  DATA=d; let dt=new Date(d.updated_at); document.getElementById('updated').textContent='更新 '+dt.toLocaleString('ja-JP');
  document.getElementById('regime').textContent=(d.regime&&d.regime.regime_jp)||'--';
  let groups=['ALL',...new Set([...(d.ranking||[]),...(d.screening||[])].map(x=>x.group))]; let f=document.getElementById('filters'); f.innerHTML=groups.map(g=>`<button class="btn ${g==='ALL'?'on':''}" data-g="${g}">${g==='ALL'?'総合':g}</button>`).join('');
  f.querySelectorAll('button').forEach(b=>b.onclick=()=>{FILTER=b.dataset.g;f.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');render()});
  document.getElementById('mode').querySelectorAll('button').forEach(b=>b.onclick=()=>{MODE=b.dataset.m;document.getElementById('mode').querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');render()}); document.getElementById('method').textContent=d.methodology?.warning||''; render();
-}).catch(e=>document.getElementById('cards').innerHTML='<div class="empty">advisor.jsonがまだありません。GitHub Actionsを一度実行してください。</div>');
+}).catch(e=>{console.error(e);document.getElementById('cards').innerHTML='<div class="empty">データ読込エラー: '+String(e.message||e)+'</div>'});
 </script></body></html>
