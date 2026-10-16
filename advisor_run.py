@@ -21,6 +21,28 @@ ROOT=Path(__file__).resolve().parent
 DOCS=ROOT/"docs"; DATA=DOCS/"data"; STATE=ROOT/"state"
 DATA.mkdir(parents=True,exist_ok=True); STATE.mkdir(parents=True,exist_ok=True)
 
+def json_safe(v):
+    """Convert NaN/Infinity/numpy scalars into strict browser-safe JSON."""
+    if isinstance(v, dict):
+        return {str(k): json_safe(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [json_safe(x) for x in v]
+    try:
+        if hasattr(v, "item") and not isinstance(v, (str, bytes)):
+            v = v.item()
+    except Exception:
+        pass
+    if isinstance(v, float):
+        if pd.isna(v) or v == float("inf") or v == float("-inf"):
+            return None
+    try:
+        if pd.isna(v):
+            return None
+    except Exception:
+        pass
+    return v
+
+
 def load_json(path, default):
     try: return json.loads(Path(path).read_text(encoding="utf-8"))
     except Exception: return default
@@ -144,9 +166,9 @@ def main():
     previous=remote_json("advisor_state.json") or load_json(STATE/"advisor_state.json",{})
     new_state=notify_signals(ranked,regime,previous)
     (STATE/"advisor_state.json").write_text(json.dumps(new_state,ensure_ascii=False,indent=2),encoding="utf-8")
-    (DATA/"advisor_state.json").write_text(json.dumps(new_state,ensure_ascii=False,indent=2),encoding="utf-8")
+    (DATA/"advisor_state.json").write_text(json.dumps(json_safe(new_state),ensure_ascii=False,indent=2,allow_nan=False),encoding="utf-8")
     payload={"updated_at":datetime.now(timezone.utc).isoformat(),"regime":regime,"universe_count":len(UNIVERSE),"detailed_count":len(ranked),"fundamentals_refreshed":refreshed,"ranking":ranked,"screening":screening,"portfolio_symbols":list(portfolio.keys()),"methodology":{"weights":"一次: 日足+週足テクニカルで全銘柄を100点換算。上位40を Technical 40 + Forward/Guidance 25 + Quality 20 + Valuation 10 + Regime ±5 - Risk で詳細評価","technical":"5分足など短期足は不使用。日足25点 + 週足15点。21EMA/50DMA/200DMA, RSI, MACD, breakout, SMH相対強度, ATRを使用。","warning":"機械的な意思決定支援であり利益を保証する売買指示ではありません。発注前に一次情報とブローカー価格を確認してください。"}}
-    (DATA/"advisor.json").write_text(json.dumps(payload,ensure_ascii=False,indent=2,default=lambda o:None),encoding="utf-8")
+    (DATA/"advisor.json").write_text(json.dumps(json_safe(payload),ensure_ascii=False,indent=2,allow_nan=False,default=lambda o:None),encoding="utf-8")
     print("advisor updated",payload["updated_at"],"screened",len(screening),"detailed",len(ranked),"top",[(x['symbol'],x['score']) for x in ranked[:5]])
 
 if __name__=="__main__":main()
