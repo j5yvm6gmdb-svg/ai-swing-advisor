@@ -13,7 +13,7 @@ permissions:
 jobs:
   advisor:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -36,6 +36,7 @@ jobs:
           FUNDAMENTAL_CACHE_HOURS: '20'
           RESEARCH_LIMIT: '40'
           ADVISOR_ALERT_SCORE: '80'
+          RANK_JUMP_ALERT: '10'
         run: python advisor_run.py
       - name: Configure Pages
         uses: actions/configure-pages@v5
